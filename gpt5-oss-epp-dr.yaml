@@ -1,0 +1,11 @@
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: epp-insecure-tls-gpt5
+  namespace: default
+spec:
+  host: vllm-gpt5-oss-epp
+  trafficPolicy:
+    tls:
+      insecureSkipVerify: true
+      mode: SIMPLE
