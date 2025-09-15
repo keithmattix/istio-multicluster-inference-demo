@@ -46,8 +46,10 @@ function configure_istio_inference() {
 
 function setup_istio() {
   echo "Setting up Istio in context: $1"
+  CTX_CLUSTER=${$1#kind-}
   pushd "$REPO_DIR"
-  go run ./istioctl/cmd/istioctl install -y --context=$1 --set tag=$TAG --set hub=gcr.io/istio-testing --set values.pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true
+  go run ./istioctl/cmd/istioctl install -y --context=$1 --set tag=$TAG --set hub=gcr.io/istio-testing --set values.pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true \
+  --set values.global.multiCluster.clusterName=$CTX_CLUSTER
   popd
 }
 
