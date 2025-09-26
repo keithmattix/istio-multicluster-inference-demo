@@ -112,7 +112,7 @@ if [ ! -f ./prow/integ-suite-kind.sh ]; then
 fi
 
 # We're on master which at this point in time has v1 InferencePool support
-./prow/integ-suite-kind.sh --skip-cleanup --topology MULTICLUSTER_SINGLE_NETWORK --topology-config ../istio-multicluster-inference-demo/multicluster-single-network.json
+./prow/integ-suite-kind.sh --skip-cleanup --topology MULTICLUSTER --topology-config ../istio-multicluster-inference-demo/multicluster-single-network.json
 popd
 
 KIND_CLUSTER1=primary-1
