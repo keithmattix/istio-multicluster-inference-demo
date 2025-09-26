@@ -1,7 +1,6 @@
 #!/bin/bash
 
-
-set -euo pipefail
+set -euox pipefail
 
 REPO=istio
 REPO_URL=https://github.com/istio/istio.git
@@ -46,10 +45,10 @@ function configure_istio_inference() {
 
 function setup_istio() {
   echo "Setting up Istio in context: $1"
-  CTX_CLUSTER=${$1#kind-}
+  CLUSTER_NAME=${1#kind-}
   pushd "$REPO_DIR"
   go run ./istioctl/cmd/istioctl install -y --context=$1 --set tag=$TAG --set hub=gcr.io/istio-testing --set values.pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true \
-  --set values.global.multiCluster.clusterName=$CTX_CLUSTER
+  --set values.global.multiCluster.clusterName=$CLUSTER_NAME
   popd
 }
 
@@ -129,7 +128,6 @@ done
 # Now set up remote secrets in both clusters
 setup_remote_secrets "$KIND_CLUSTER1" "$KIND_CLUSTER2"
 setup_remote_secrets "$KIND_CLUSTER2" "$KIND_CLUSTER1"
-
 
 # Now test the setup by using curl to send requests to the gateway in cluster1:
 kubectl config use-context $CTX_CLUSTER1
