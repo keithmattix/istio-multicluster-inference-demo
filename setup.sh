@@ -5,7 +5,9 @@ set -euox pipefail
 REPO=istio
 REPO_URL=https://github.com/istio/istio.git
 REPO_DIR=""
-TAG=$(curl https://storage.googleapis.com/istio-build/dev/1.28-dev)
+REMOTE_TAG=$(curl https://storage.googleapis.com/istio-build/dev/1.28-dev)
+TAG=${TAG:-$REMOTE_TAG}
+HUB=${HUB:-gcr.io/istio-testing}
 
 function setup_remote_secrets() {
   echo "Setting up remote secrets in cluster $1 for remote cluster $2"
@@ -47,7 +49,7 @@ function setup_istio() {
   echo "Setting up Istio in context: $1"
   CLUSTER_NAME=${1#kind-}
   pushd "$REPO_DIR"
-  go run ./istioctl/cmd/istioctl install -y --context=$1 --set tag=$TAG --set hub=gcr.io/istio-testing --set values.pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true \
+  go run ./istioctl/cmd/istioctl install -y --context=$1 --set tag=$TAG --set hub=$HUB --set values.pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true \
   --set values.global.multiCluster.clusterName=$CLUSTER_NAME
   popd
 }
