@@ -49,8 +49,13 @@ function setup_istio() {
   echo "Setting up Istio in context: $1"
   CLUSTER_NAME=${1#kind-}
   pushd "$REPO_DIR"
+  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  echo "Current branch is $CURRENT_BRANCH"
+  # Checkout last known good Istio version (before the EnvoyFilter validation regression)
+  git checkout 1d93c56e47c56945c446a5c6be124dc7b967f04c
   go run ./istioctl/cmd/istioctl install -y --context=$1 --set tag=$TAG --set hub=$HUB --set values.pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true \
   --set values.global.multiCluster.clusterName=$CLUSTER_NAME
+  git checkout "$CURRENT_BRANCH"
   popd
 }
 
