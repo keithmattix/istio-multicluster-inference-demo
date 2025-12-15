@@ -5,9 +5,10 @@ set -euox pipefail
 REPO=istio
 REPO_URL=https://github.com/istio/istio.git
 REPO_DIR=""
-REMOTE_TAG=$(curl https://storage.googleapis.com/istio-build/dev/1.28-dev)
+REMOTE_TAG=$(curl https://storage.googleapis.com/istio-build/dev/1.29-dev)
 TAG=${TAG:-$REMOTE_TAG}
 HUB=${HUB:-gcr.io/istio-testing}
+AMBIENT=${AMBIENT:-false}
 
 function setup_remote_secrets() {
   echo "Setting up remote secrets in cluster $1 for remote cluster $2"
@@ -30,16 +31,11 @@ function setup_remote_secrets() {
 function configure_istio_inference() {
   echo "Configuring Istio Inference in context: $1"
 
-  # Add DR to allow one-way (insecure TLS to the vllm-llama3-8b-instruct EPP)
-  kubectl apply --context=$1 -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/istio/destination-rule.yaml
-  # Now do the same for the vllm-gpt5-oss EPP
-  kubectl apply --context=$1 -f ./gpt5-oss-epp-dr.yaml
-
   # Create an Istio inference Gateway
   kubectl apply --context=$1 -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/istio/gateway.yaml
 
-  # Install the Body Based Router (BBR) and configure Istio to use it via EnvoyFilter
-  helm install body-based-router --kube-context=$1 --set provider.name=istio --version v1.0.0 oci://registry.k8s.io/gateway-api-inference-extension/charts/body-based-routing
+  # Install the Body Based Router (BBR) and configure Istio to use it via EnvoyFilter. Also creates a DestinationRule for tls.
+  helm install body-based-router --kube-context=$1 --set provider.name=istio --version v1.2.1 oci://registry.k8s.io/gateway-api-inference-extension/charts/body-based-routing
 
   # Now install the HTTPRoute to route requests to the appropriate EPP based on the headers set by the BBR
   kubectl apply --context=$1 -f ./httproute.yaml
@@ -51,10 +47,12 @@ function setup_istio() {
   pushd "$REPO_DIR"
   CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
   echo "Current branch is $CURRENT_BRANCH"
-  # Checkout last known good Istio version (before the EnvoyFilter validation regression)
-  git checkout 1d93c56e47c56945c446a5c6be124dc7b967f04c
+  AMBIENT_VALUES=""
+  if [ "$AMBIENT" = "true" ]; then
+    AMBIENT_VALUES="--set profile=ambient --set values.global.network=$CLUSTER_NAME --set values.pilot.env.AMBIENT_ENABLE_MULTI_NETWORK=true"
+  fi
   go run ./istioctl/cmd/istioctl install -y --context=$1 --set tag=$TAG --set hub=$HUB --set values.pilot.env.ENABLE_GATEWAY_API_INFERENCE_EXTENSION=true \
-  --set values.global.multiCluster.clusterName=$CLUSTER_NAME
+  --set values.global.multiCluster.clusterName=$CLUSTER_NAME $AMBIENT_VALUES
   git checkout "$CURRENT_BRANCH"
   popd
 }
@@ -73,20 +71,20 @@ function setup_inference_extension() {
   # The extension deploys both alpha and v1 CRDs, so we need to clean up the alpha ones to avoid conflicts in the Istio controller
   kubectl delete --context=$1 customresourcedefinition.apiextensions.k8s.io/inferencepools.inference.networking.x-k8s.io --ignore-not-found
 
-  export GATEWAY_PROVIDER=none
+  export GATEWAY_PROVIDER=istio
 
   # Deploy the inferencepools and EPP for Llama 3 8B Instruct
   helm install vllm-llama3-8b-instruct --kube-context=$1  \
   --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
   --set provider.name=$GATEWAY_PROVIDER \
-  --version v1.0.0 \
+  --version v1.2.1 \
   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
 
   # Deploy the inferencepools and EPP for GPT5-OSS
   helm install vllm-gpt5-oss --kube-context=$1  \
   --set inferencePool.modelServers.matchLabels.app=vllm-gpt5-oss \
   --set provider.name=$GATEWAY_PROVIDER \
-  --version v1.0.0 \
+  --version v1.2.1 \
   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
 }
 
